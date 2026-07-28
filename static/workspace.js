@@ -1081,7 +1081,10 @@ function _prismLanguageForPath(path){
 function openPdfArtifact(path){
   if(!path)return;
   if(typeof toggleWorkspacePanel==='function') toggleWorkspacePanel(true);
-  const open=()=>openFile(path).catch(error=>setStatus((error&&error.message)||'Unable to open PDF.'));
+  // Chat artifacts may contain the absolute WSL workspace path. Route them
+  // through the artifact opener so the workspace prefix is removed before
+  // calling /api/list and /api/file/raw.
+  const open=()=>openArtifactPath(path).catch(error=>setStatus((error&&error.message)||'Unable to open PDF.'));
   if(typeof requestAnimationFrame==='function') requestAnimationFrame(open);
   else open();
 }
