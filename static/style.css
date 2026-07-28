@@ -7481,24 +7481,10 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
   }
   .rail{
     width:52px;
-    padding:8px 0 10px;
+    padding:16px 0 10px;
     gap:8px;
     background:var(--biomni-panel);
     border-right:1px solid var(--biomni-line);
-  }
-  .rail-brand{
-    display:grid;
-    width:52px;
-    height:54px;
-    margin-bottom:12px;
-    place-items:center;
-    flex:0 0 auto;
-  }
-  .rail-brand img{
-    display:block;
-    width:36px;
-    height:36px;
-    object-fit:contain;
   }
   .rail-btn{
     width:52px;height:54px;
@@ -7513,8 +7499,7 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
     gap:5px;
     background:transparent;
   }
-  .rail>.rail-btn:not([data-panel="memory"]):not([data-panel="workspaces"]):not([data-panel="profiles"]):not([data-panel="insights"]):not([data-panel="logs"])::after{
-    content:attr(aria-label);
+  .rail>.rail-btn:not([data-panel="memory"]):not([data-panel="workspaces"]):not([data-panel="profiles"]):not([data-panel="insights"]):not([data-panel="logs"])>.rail-label{
     display:block;
     width:100%;
     overflow:hidden;
@@ -7526,6 +7511,11 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
     text-overflow:ellipsis;
     white-space:nowrap;
   }
+  .rail>.rail-btn[data-panel="memory"]>.rail-label,
+  .rail>.rail-btn[data-panel="workspaces"]>.rail-label,
+  .rail>.rail-btn[data-panel="profiles"]>.rail-label,
+  .rail>.rail-btn[data-panel="insights"]>.rail-label,
+  .rail>.rail-btn[data-panel="logs"]>.rail-label{display:none;}
   .rail>.rail-btn svg{flex:0 0 auto;}
   .rail>.rail-btn.active:not([data-panel="memory"]):not([data-panel="workspaces"]):not([data-panel="profiles"]):not([data-panel="insights"]):not([data-panel="logs"]) svg{
     box-sizing:content-box;
@@ -7534,7 +7524,7 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
     color:var(--biomni-ink);
     background:var(--biomni-lime);
   }
-  .rail>.rail-btn.active:not([data-panel="memory"]):not([data-panel="workspaces"]):not([data-panel="profiles"]):not([data-panel="insights"]):not([data-panel="logs"])::after{
+  .rail>.rail-btn.active:not([data-panel="memory"]):not([data-panel="workspaces"]):not([data-panel="profiles"]):not([data-panel="insights"]):not([data-panel="logs"])>.rail-label{
     color:var(--biomni-ink);
   }
   .rail-btn:hover{background:#e7e6df;color:var(--biomni-ink);}
@@ -7675,7 +7665,7 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
   .rightpanel{
     width:min(27vw,520px)!important;
     min-width:360px;
-    padding-right:52px;
+    padding-right:64px;
     box-sizing:border-box;
     margin:0;
     color:var(--biomni-ink);
@@ -7718,7 +7708,7 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
     top:53px;
     right:0;
     bottom:0;
-    width:52px;
+    width:64px;
     pointer-events:none;
     background:var(--biomni-panel);
     border-left:1px solid var(--biomni-line);
@@ -7730,17 +7720,38 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
   .rail .nav-tab[data-panel="logs"]{
     position:fixed;
     z-index:25;
-    right:6px;
-    width:40px;
-    height:40px;
+    right:0;
+    display:flex;
+    width:64px;
+    height:56px;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
     margin:0;
     color:#56554f;
   }
-  .rail .nav-tab[data-panel="memory"]{top:68px;}
-  .rail .nav-tab[data-panel="workspaces"]{top:116px;}
-  .rail .nav-tab[data-panel="profiles"]{top:164px;}
-  .rail .nav-tab[data-panel="insights"]{top:212px;}
-  .rail .nav-tab[data-panel="logs"]{top:260px;}
+  .rail .nav-tab[data-panel="memory"]{top:62px;}
+  .rail .nav-tab[data-panel="workspaces"]{top:122px;}
+  .rail .nav-tab[data-panel="profiles"]{top:182px;}
+  .rail .nav-tab[data-panel="insights"]{top:242px;}
+  .rail .nav-tab[data-panel="logs"]{top:302px;}
+  .rail>.rail-btn[data-panel="memory"]>.rail-label,
+  .rail>.rail-btn[data-panel="workspaces"]>.rail-label,
+  .rail>.rail-btn[data-panel="profiles"]>.rail-label,
+  .rail>.rail-btn[data-panel="insights"]>.rail-label,
+  .rail>.rail-btn[data-panel="logs"]>.rail-label{
+    display:block;
+    width:60px;
+    overflow:hidden;
+    color:inherit;
+    font-size:8px;
+    font-weight:500;
+    line-height:1.05;
+    text-align:center;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
   .rail .nav-tab[data-panel="memory"]:hover,
   .rail .nav-tab[data-panel="workspaces"]:hover,
   .rail .nav-tab[data-panel="profiles"]:hover,
@@ -7755,6 +7766,16 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
   .rail .nav-tab[data-panel="insights"].active,
   .rail .nav-tab[data-panel="logs"].active{
     color:var(--biomni-ink);
+    background:transparent;
+  }
+  .rail .nav-tab[data-panel="memory"].active svg,
+  .rail .nav-tab[data-panel="workspaces"].active svg,
+  .rail .nav-tab[data-panel="profiles"].active svg,
+  .rail .nav-tab[data-panel="insights"].active svg,
+  .rail .nav-tab[data-panel="logs"].active svg{
+    box-sizing:content-box;
+    padding:8px;
+    border-radius:50%;
     background:var(--biomni-lime);
   }
 }
