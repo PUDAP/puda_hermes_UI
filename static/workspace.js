@@ -932,6 +932,7 @@ function forceRenderMarkdownPreview(){
 
 let _previewCurrentPath = '';  // relative path of currently previewed file
 let _previewCurrentMode = '';  // 'code' | 'csv' | 'md' | 'image' | 'html' | 'pdf' | 'audio' | 'video'
+let _previewPdfObjectUrl = '';
 let _previewDirty = false;     // true when edits are unsaved
 let _previewServerEditable = null;  // backend editability metadata when available
 let _previewSaveRoute = '/api/file/save';  // current save adapter for the open preview
@@ -1085,6 +1086,12 @@ function openPdfArtifact(path){
   if(typeof requestAnimationFrame==='function') requestAnimationFrame(open);
   else open();
 }
+
+function _releasePreviewPdfObjectUrl(){
+  if(!_previewPdfObjectUrl)return;
+  try{URL.revokeObjectURL(_previewPdfObjectUrl);}catch(_){}
+  _previewPdfObjectUrl='';
+}
 if(typeof window!=='undefined') window.openPdfArtifact=openPdfArtifact;
 
 async function openFile(path, opts={}){
@@ -1134,9 +1141,20 @@ async function openFile(path, opts={}){
     const url=_workspaceRouteForPath(path, 'raw', {inline:true}) + cacheBust;
     const frame=$('previewPdfFrame');
     if(frame){
+      _releasePreviewPdfObjectUrl();
       frame.src=''; // clear first to avoid stale content
-      frame.src=url;
       frame.title=`PDF preview: ${path.split('/').pop()||path}`;
+      try{
+        const response=await fetch(url,{credentials:'same-origin'});
+        if(!response.ok)throw new Error(`PDF request failed (${response.status})`);
+        const blob=await response.blob();
+        if(!/^application\/pdf(?:$|;)/i.test(blob.type||'application/pdf'))throw new Error('Server did not return a PDF');
+        _previewPdfObjectUrl=URL.createObjectURL(blob);
+        frame.src=_previewPdfObjectUrl;
+      }catch(error){
+        frame.src='';
+        setStatus(`Unable to preview PDF: ${(error&&error.message)||'request failed'}`);
+      }
     }
   } else if(MD_EXTS.has(ext)){
     // Markdown: fetch text, render with renderMd, display as formatted HTML
