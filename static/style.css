@@ -7481,10 +7481,24 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
   }
   .rail{
     width:52px;
-    padding:20px 0 10px;
+    padding:8px 0 10px;
     gap:8px;
     background:var(--biomni-panel);
-    border-right:0;
+    border-right:1px solid var(--biomni-line);
+  }
+  .rail-brand{
+    display:grid;
+    width:52px;
+    height:54px;
+    margin-bottom:12px;
+    place-items:center;
+    flex:0 0 auto;
+  }
+  .rail-brand img{
+    display:block;
+    width:36px;
+    height:36px;
+    object-fit:contain;
   }
   .rail-btn{
     width:52px;height:54px;
