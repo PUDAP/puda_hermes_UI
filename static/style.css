@@ -7467,7 +7467,7 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
     font-weight:400;
   }
   .app-titlebar-title::before{
-    content:"Quick Tasks  /  ";
+    content:"Chat  /  ";
     color:#5e5b4e;
     font-family:inherit;
   }
@@ -7609,6 +7609,8 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
   .rightpanel{
     width:min(27vw,520px)!important;
     min-width:360px;
+    padding-right:52px;
+    box-sizing:border-box;
     margin:0;
     color:var(--biomni-ink);
     background:var(--biomni-paper);
@@ -7638,6 +7640,54 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
   .workspace-panel-tab.active{
     color:var(--biomni-ink);
     border-bottom-color:var(--biomni-lime);
+  }
+
+  /* Secondary knowledge/workspace destinations live beside the workspace,
+     mirroring Biomni's right-hand utility stack. Their original buttons are
+     moved visually, so all existing IDs, handlers, badges, and state survive. */
+  .layout::after{
+    content:"";
+    position:fixed;
+    z-index:24;
+    top:53px;
+    right:0;
+    bottom:0;
+    width:52px;
+    pointer-events:none;
+    background:var(--biomni-panel);
+    border-left:1px solid var(--biomni-line);
+  }
+  .rail .nav-tab[data-panel="memory"],
+  .rail .nav-tab[data-panel="workspaces"],
+  .rail .nav-tab[data-panel="profiles"],
+  .rail .nav-tab[data-panel="insights"],
+  .rail .nav-tab[data-panel="logs"]{
+    position:fixed;
+    z-index:25;
+    right:6px;
+    margin:0;
+    color:#56554f;
+  }
+  .rail .nav-tab[data-panel="memory"]{top:68px;}
+  .rail .nav-tab[data-panel="workspaces"]{top:116px;}
+  .rail .nav-tab[data-panel="profiles"]{top:164px;}
+  .rail .nav-tab[data-panel="insights"]{top:212px;}
+  .rail .nav-tab[data-panel="logs"]{top:260px;}
+  .rail .nav-tab[data-panel="memory"]:hover,
+  .rail .nav-tab[data-panel="workspaces"]:hover,
+  .rail .nav-tab[data-panel="profiles"]:hover,
+  .rail .nav-tab[data-panel="insights"]:hover,
+  .rail .nav-tab[data-panel="logs"]:hover{
+    color:var(--biomni-ink);
+    background:#e7e6df;
+  }
+  .rail .nav-tab[data-panel="memory"].active,
+  .rail .nav-tab[data-panel="workspaces"].active,
+  .rail .nav-tab[data-panel="profiles"].active,
+  .rail .nav-tab[data-panel="insights"].active,
+  .rail .nav-tab[data-panel="logs"].active{
+    color:var(--biomni-ink);
+    background:var(--biomni-lime);
   }
 }
 
