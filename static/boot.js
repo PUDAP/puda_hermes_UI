@@ -2167,7 +2167,6 @@ function clearPreview(opts={}){
   const pa=$('previewArea');if(pa)pa.classList.remove('visible');
   const pi=$('previewImg');if(pi){pi.onerror=null;pi.src='';}
   const pdf=$('previewPdfFrame');if(pdf)pdf.src='';
-  if(typeof _releasePreviewPdfObjectUrl==='function')_releasePreviewPdfObjectUrl();
   const html=$('previewHtmlIframe');if(html)html.src='';
   const pm=$('previewMd');if(pm)pm.innerHTML='';
   const pc=$('previewCode');if(pc)pc.textContent='';
