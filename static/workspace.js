@@ -951,6 +951,7 @@ function showPreview(mode){
   badge.className='preview-badge '+mode;
   badge.textContent = mode==='image'?'image':mode==='audio'?'audio':mode==='video'?'video':mode==='pdf'?'pdf':mode==='csv'?'csv':mode==='md'?'md':mode==='html'?'html':fileExt($('previewPathText').textContent)||'text';
   _previewCurrentMode = mode;
+  document.documentElement.dataset.workspacePdf=mode==='pdf'?'open':'closed';
   _previewDirty = false;
   updateEditBtn();
   // Show "Open in browser" button for iframe-backed document previews
@@ -1076,6 +1077,15 @@ function _prismLanguageForPath(path){
   const ext=fileExt(path).replace(/^\./,'');
   return _PRISM_LANG_MAP[ext]!==undefined?_PRISM_LANG_MAP[ext]:'plaintext';
 }
+
+function openPdfArtifact(path){
+  if(!path)return;
+  if(typeof toggleWorkspacePanel==='function') toggleWorkspacePanel(true);
+  const open=()=>openFile(path).catch(error=>setStatus((error&&error.message)||'Unable to open PDF.'));
+  if(typeof requestAnimationFrame==='function') requestAnimationFrame(open);
+  else open();
+}
+if(typeof window!=='undefined') window.openPdfArtifact=openPdfArtifact;
 
 async function openFile(path, opts={}){
   if(!S.session)return;

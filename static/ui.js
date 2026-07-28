@@ -9,7 +9,8 @@ const S={session:null,messages:[],entries:[],busy:false,pendingFiles:[],toolCall
 
 function assistantDisplayName(){
   if(S.activeProfile&&S.activeProfile!=='default') return S.activeProfile.charAt(0).toUpperCase()+S.activeProfile.slice(1);
-  return window._botName||'Hermes';
+  const configured=(window._botName||'').trim();
+  return !configured||configured==='Hermes'?'PUDA':configured;
 }
 const INFLIGHT={};  // keyed by session_id while request in-flight
 const SESSION_QUEUES={};  // keyed by session_id for queued follow-up turns
@@ -2653,6 +2654,12 @@ function _inlineMediaHtmlForRef(ref, sessionId, altText){
   if(_SVG_EXTS.test(ref)) return `<img class="msg-media-svg" src="${esc(apiUrl)}" alt="${esc(altText===undefined?(typeof t==='function'?t('media_svg_label'):'svg'):altText)}" loading="lazy">`;
   if(localKind==='audio'||localKind==='video'){
     return _mediaPlayerHtml(localKind,apiUrl+'&inline=1',ref.split('/').pop()||ref);
+  }
+  // PDFs open in the workspace viewer so the conversation remains visible
+  // beside the document instead of growing a large inline transcript embed.
+  if(_PDF_EXTS.test(ref)){
+    const fname=esc(ref.split('/').pop()||ref);
+    return `<div class="pdf-workspace-card"><button type="button" class="pdf-workspace-open" data-path="${esc(ref)}" onclick="openPdfArtifact(this.dataset.path)"><span aria-hidden="true">PDF</span><span><strong>${fname}</strong><small>Open beside chat</small></span><span aria-hidden="true">→</span></button><a href="${esc(apiUrl+'&download=1')}" download="${fname}" onclick="event.stopPropagation()">Download ↓</a></div>`;
   }
   if(_PDF_EXTS.test(ref)){
     const fname=esc(ref.split('/').pop()||ref);
@@ -18491,6 +18498,12 @@ function postProcessRenderedMessages(container) {
   loadCsvInline(container);
   loadExcalidrawInline(container);
   loadPdfInline(container);
+  const pdfCards=container?container.querySelectorAll('.pdf-workspace-open[data-path]'):[];
+  const latestPdf=pdfCards&&pdfCards.length?pdfCards[pdfCards.length-1]:null;
+  if(latestPdf&&typeof window.openPdfArtifact==='function'&&window._lastWorkspacePdfPath!==latestPdf.dataset.path){
+    window._lastWorkspacePdfPath=latestPdf.dataset.path;
+    window.openPdfArtifact(latestPdf.dataset.path);
+  }
   loadHtmlInline(container);
   renderMermaidBlocks(container);
   renderKatexBlocks(container);
