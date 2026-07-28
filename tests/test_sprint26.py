@@ -34,10 +34,10 @@ def post(path, body=None):
 # ── Theme settings ───────────────────────────────────────────────────────
 
 def test_settings_default_theme():
-    """Default theme should be 'dark'."""
+    """Default theme should be 'light'."""
     d, status = get("/api/settings")
     assert status == 200
-    assert d.get("theme") == "dark"
+    assert d.get("theme") == "light"
 
 
 def test_settings_set_theme_light_persists():
@@ -116,13 +116,13 @@ def test_settings_legacy_monokai_maps_to_sisyphus_skin():
         post("/api/settings", {"theme": "dark", "skin": "default"})
 
 
-def test_settings_unknown_theme_falls_back_to_dark_default():
+def test_settings_unknown_theme_falls_back_to_light_default():
     """Unknown themes should normalize to a safe canonical appearance."""
     try:
         d, status = post("/api/settings", {"theme": "my-custom-theme"})
         assert status == 200
         d2, _ = get("/api/settings")
-        assert d2.get("theme") == "dark"
+        assert d2.get("theme") == "light"
         assert d2.get("skin") == "default"
     finally:
         post("/api/settings", {"theme": "dark", "skin": "default"})

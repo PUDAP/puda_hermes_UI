@@ -9213,7 +9213,7 @@ _SETTINGS_DEFAULTS = {
     "voice_continuous": False,
     "voice_silence_ms": 1800,
     "raw_audio_mode": False,
-    "theme": "dark",  # light | dark | system
+    "theme": "light",  # light | dark | system
     "skin": "default",  # accent color skin: default | ares | mono | graphite | slate | poseidon | sisyphus | charizard | sienna | catppuccin | nous
     "font_size": "default",  # small | default | large | xlarge
     "session_jump_buttons": False,  # show Start/End transcript jump pills
@@ -9335,7 +9335,7 @@ def _normalize_appearance(theme, skin) -> tuple[str, str]:
         nord      → ("dark", "slate")
         oled      → ("dark", "default")
 
-    Unknown / custom theme names fall back to ("dark", "default").  This is a
+    Unknown / custom theme names fall back to ("light", "default").  This is a
     behavior change vs. the pre-PR-#627 state, where the `theme` field was
     open-ended ("no enum gate -- allows custom themes").  Users who set a
     custom CSS theme via `data-theme` will need to re-apply via skin or
@@ -9352,8 +9352,8 @@ def _normalize_appearance(theme, skin) -> tuple[str, str]:
     elif raw_theme in _SETTINGS_THEME_VALUES:
         next_theme, legacy_skin = raw_theme, "default"
     else:
-        # Unknown themes used to exist; default to dark so upgrades stay visually stable.
-        next_theme, legacy_skin = "dark", "default"
+        # Unknown themes use the same safe baseline as a fresh installation.
+        next_theme, legacy_skin = "light", "default"
     next_skin = (
         raw_skin
         if raw_skin in _SETTINGS_SKIN_VALUES
