@@ -3599,7 +3599,7 @@ body.tts-enabled .msg-tts-btn{display:inline-flex;align-items:center;}
 .rightpanel .resize-handle{left:-2px;}
 /* Prevent text selection during drag */
 body.resizing{user-select:none;cursor:col-resize;}
-body.resizing .sidebar{transition:none!important;}
+body.resizing .sidebar,body.resizing .rightpanel{transition:none!important;}
 
 /* ── Tool call cards ── */
 /* Running indicator dot (pulsing) */
@@ -6619,7 +6619,9 @@ main.main > .main-view:not([id="mainChat"]):not([id="mainSettings"]) .main-view-
 
 @media (min-width:901px){
   html[data-workspace-preview="open"] .main{flex:1 1 34%;min-width:420px;}
-  html[data-workspace-preview="open"] .rightpanel{width:min(56vw,1080px)!important;min-width:620px;}
+  /* This is the initial preview width only. The existing desktop resize
+     handle writes an inline width, which must remain free to override it. */
+  html[data-workspace-preview="open"] .rightpanel{width:min(56vw,1080px);}
   html[data-workspace-pdf="open"] .preview-pdf-wrap{min-height:0;border:0;border-radius:0;}
   html[data-workspace-pdf="open"] .preview-pdf-frame{min-height:calc(100vh - 150px);}
 }

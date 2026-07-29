@@ -47,6 +47,15 @@ def test_local_images_and_pdfs_open_in_workspace_beside_chat():
     assert "querySelectorAll('.workspace-preview-open[data-path]')" in ui_js
 
 
+def test_workspace_preview_width_remains_user_resizable():
+    assert 'id="rightpanelResize"' in INDEX_HTML
+    assert "initResize('rightpanelResize'" in Path("static/boot.js").read_text(encoding="utf-8")
+    preview_rule = STYLE_CSS.split('html[data-workspace-preview="open"] .rightpanel', 1)[1].split("}", 1)[0]
+    assert "!important" not in preview_rule
+    assert "min-width:620px" not in preview_rule
+    assert "body.resizing .rightpanel" in STYLE_CSS
+
+
 def test_workspace_artifacts_structured_args_are_mutation_gated():
     """Read-only tool args with path fields must not appear as changed files."""
     fn_start = WORKSPACE_JS.index("function _artifactCandidatesFromToolCall(tc)")
