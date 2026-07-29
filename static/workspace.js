@@ -952,6 +952,7 @@ function showPreview(mode){
   badge.textContent = mode==='image'?'image':mode==='audio'?'audio':mode==='video'?'video':mode==='pdf'?'pdf':mode==='csv'?'csv':mode==='md'?'md':mode==='html'?'html':fileExt($('previewPathText').textContent)||'text';
   _previewCurrentMode = mode;
   document.documentElement.dataset.workspacePdf=mode==='pdf'?'open':'closed';
+  document.documentElement.dataset.workspacePreview=(mode==='pdf'||mode==='image')?'open':'closed';
   _previewDirty = false;
   updateEditBtn();
   // Show "Open in browser" button for iframe-backed document previews
@@ -1078,16 +1079,18 @@ function _prismLanguageForPath(path){
   return _PRISM_LANG_MAP[ext]!==undefined?_PRISM_LANG_MAP[ext]:'plaintext';
 }
 
-function openPdfArtifact(path){
+function openWorkspaceArtifact(path){
   if(!path)return;
   if(typeof toggleWorkspacePanel==='function') toggleWorkspacePanel(true);
   // Chat artifacts may contain the absolute WSL workspace path. Route them
   // through the artifact opener so the workspace prefix is removed before
   // calling /api/list and /api/file/raw.
-  const open=()=>openArtifactPath(path).catch(error=>setStatus((error&&error.message)||'Unable to open PDF.'));
+  const open=()=>openArtifactPath(path).catch(error=>setStatus((error&&error.message)||'Unable to open artifact.'));
   if(typeof requestAnimationFrame==='function') requestAnimationFrame(open);
   else open();
 }
+function openPdfArtifact(path){ return openWorkspaceArtifact(path); }
+if(typeof window!=='undefined') window.openWorkspaceArtifact=openWorkspaceArtifact;
 if(typeof window!=='undefined') window.openPdfArtifact=openPdfArtifact;
 
 async function openFile(path, opts={}){

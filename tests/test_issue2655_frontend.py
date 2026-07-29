@@ -29,13 +29,22 @@ def test_workspace_artifacts_tab_collects_session_files_and_previews_them():
 
 
 def test_pdf_chat_artifacts_use_workspace_relative_path_handling():
-    """Absolute WSL artifact paths must not be sent directly to preview APIs."""
-    fn_start = WORKSPACE_JS.index("function openPdfArtifact(path)")
+    """Absolute artifact paths must not be sent directly to preview APIs."""
+    fn_start = WORKSPACE_JS.index("function openWorkspaceArtifact(path)")
     fn_end = WORKSPACE_JS.index("async function openFile(path", fn_start)
     body = WORKSPACE_JS[fn_start:fn_end]
 
     assert "openArtifactPath(path)" in body
     assert "openFile(path)" not in body
+
+
+def test_local_images_and_pdfs_open_in_workspace_beside_chat():
+    ui_js = Path("static/ui.js").read_text(encoding="utf-8")
+
+    assert 'class="workspace-preview-card image-workspace-card"' in ui_js
+    assert 'class="workspace-preview-card pdf-workspace-card"' in ui_js
+    assert "openWorkspaceArtifact(this.dataset.path)" in ui_js
+    assert "querySelectorAll('.workspace-preview-open[data-path]')" in ui_js
 
 
 def test_workspace_artifacts_structured_args_are_mutation_gated():
