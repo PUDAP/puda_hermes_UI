@@ -270,7 +270,7 @@ function _beginSettingsPanelSession() {
     _searchResults.innerHTML = '';
   }
   _settingsDirty = false;
-  _settingsThemeOnOpen = localStorage.getItem('hermes-theme') || 'dark';
+  _settingsThemeOnOpen = localStorage.getItem('hermes-theme') || 'light';
   _settingsSkinOnOpen = localStorage.getItem('hermes-skin') || 'default';
   _settingsFontSizeOnOpen = localStorage.getItem('hermes-font-size') || 'default';
   _pendingSettingsTargetPanel = null;
@@ -4815,13 +4815,96 @@ async function loadSkills() {
     _skillsData = data.skills || [];
     // Prune collapsed state to only keep categories present in fresh data,
     // avoiding stale keys when categories are renamed or removed server-side.
-    const liveCats = new Set(_skillsData.map(s => s.category || '(general)'));
+    const liveCats = new Set(_skillsData.map(_skillDisplayCategory));
     for (const c of _collapsedCats) { if (!liveCats.has(c)) _collapsedCats.delete(c); }
     renderSkills(_skillsData);
   } catch(e) { box.innerHTML = `<div style="padding:12px;color:var(--accent);font-size:12px">Error: ${esc(e.message)}</div>`; }
 }
 
 let _collapsedCats = new Set(); // persisted collapsed state across re-renders
+let _skillsHubFilter = 'all';
+
+function _skillDisplayCategory(skill) {
+  const name = (skill && skill.name || '').toLowerCase();
+  if (name === 'puda' || name.startsWith('puda-')) return 'PUDA';
+  const category = (skill && skill.category || '(general)').trim();
+  return category === '(general)' ? 'General' : category;
+}
+
+function setSkillsHubFilter(filter) {
+  _skillsHubFilter = ['all','enabled','disabled','puda'].includes(filter) ? filter : 'all';
+  document.querySelectorAll('#skillsHubFilters .skills-hub-filter').forEach(button => {
+    button.classList.toggle('active', button.dataset.filter === _skillsHubFilter);
+  });
+  if (_skillsData) renderSkills(_skillsData);
+}
+
+function _renderSkillsHub(skills) {
+  const grid = $('skillsHubGrid');
+  if (!grid) return;
+  const search = (($('skillsHubSearch') || {}).value || '').trim().toLowerCase();
+  const categorySelect = $('skillsHubCategory');
+  const categories = [...new Set(skills.map(_skillDisplayCategory))].sort((a,b) => {
+    if (a === 'PUDA') return -1;
+    if (b === 'PUDA') return 1;
+    return a.localeCompare(b);
+  });
+  const selectedCategory = categorySelect ? categorySelect.value : 'all';
+  if (categorySelect) {
+    categorySelect.innerHTML = '<option value="all">All categories</option>' +
+      categories.map(category => `<option value="${esc(category)}">${esc(category)}</option>`).join('');
+    categorySelect.value = categories.includes(selectedCategory) ? selectedCategory : 'all';
+  }
+  const filtered = skills.filter(skill => {
+    const category = _skillDisplayCategory(skill);
+    const matchesSearch = !search ||
+      (skill.name || '').toLowerCase().includes(search) ||
+      (skill.description || '').toLowerCase().includes(search) ||
+      category.toLowerCase().includes(search);
+    const matchesCategory = !categorySelect || categorySelect.value === 'all' || category === categorySelect.value;
+    const matchesSource = _skillsHubFilter === 'all' ||
+      (_skillsHubFilter === 'enabled' && !skill.disabled) ||
+      (_skillsHubFilter === 'disabled' && !!skill.disabled) ||
+      (_skillsHubFilter === 'puda' && category === 'PUDA');
+    return matchesSearch && matchesCategory && matchesSource;
+  });
+  if ($('skillsHubAllCount')) $('skillsHubAllCount').textContent = skills.length;
+  if ($('skillsHubVisibleCount')) $('skillsHubVisibleCount').textContent = `${filtered.length} shown`;
+  grid.innerHTML = '';
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="skills-hub-no-results">${esc(t('skills_no_match'))}</div>`;
+    return;
+  }
+  for (const skill of filtered.sort((a,b) => {
+    const catOrder = _skillDisplayCategory(a).localeCompare(_skillDisplayCategory(b));
+    return catOrder || a.name.localeCompare(b.name);
+  })) {
+    const card = document.createElement('article');
+    card.className = 'skills-hub-card' + (skill.disabled ? ' disabled' : '');
+    card.tabIndex = 0;
+    card.innerHTML = `
+      <h2>${esc(skill.name)}</h2>
+      <div class="skills-hub-card-category">${esc(_skillDisplayCategory(skill))}</div>
+      <p>${esc(skill.description || 'No description provided.')}</p>
+      <div class="skills-hub-card-footer">
+        <span class="skills-hub-card-source">${_skillDisplayCategory(skill) === 'PUDA' ? 'PUDA' : 'Hermes'}</span>
+        <button class="skills-hub-status ${skill.disabled ? '' : 'enabled'}" type="button">${skill.disabled ? 'Disabled' : '✓ Enabled'}</button>
+      </div>`;
+    const status = card.querySelector('.skills-hub-status');
+    status.addEventListener('click', event => {
+      event.stopPropagation();
+      toggleSkill(skill.name, !skill.disabled);
+    });
+    card.addEventListener('click', () => openSkill(skill.name, null));
+    card.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openSkill(skill.name, null);
+      }
+    });
+    grid.appendChild(card);
+  }
+}
 
 function _toggleCatCollapse(cat) {
   if (_collapsedCats.has(cat)) _collapsedCats.delete(cat);
@@ -4839,7 +4922,8 @@ function _toggleCatCollapse(cat) {
 }
 
 function renderSkills(skills) {
-  const query = ($('skillsSearch').value || '').toLowerCase();
+  _renderSkillsHub(skills);
+  const query = (($('skillsSearch') || {}).value || '').toLowerCase();
   const filtered = query ? skills.filter(s =>
     (s.name||'').toLowerCase().includes(query) ||
     (s.description||'').toLowerCase().includes(query) ||
@@ -4848,7 +4932,7 @@ function renderSkills(skills) {
   // Group by category
   const cats = {};
   for (const s of filtered) {
-    const cat = s.category || '(general)';
+    const cat = _skillDisplayCategory(s);
     if (!cats[cat]) cats[cat] = [];
     cats[cat].push(s);
   }
@@ -5000,14 +5084,25 @@ function _renderSkillError(name, message) {
 function _setSkillHeaderButtons(mode) {
 
   const header = $('mainSkills') && $('mainSkills').querySelector('.main-view-header');  const editBtn = $('btnEditSkillDetail');
+  const backBtn = $('btnBackSkillsHub');
   const delBtn = $('btnDeleteSkillDetail');
   const cancelBtn = $('btnCancelSkillDetail');
   const saveBtn = $('btnSaveSkillDetail');
   const show = b => b && (b.style.display = '');
   const hide = b => b && (b.style.display = 'none');
-  if (mode === 'read') { if (header) header.style.display = 'flex';  show(editBtn); show(delBtn); hide(cancelBtn); hide(saveBtn); }
-  else if (mode === 'create' || mode === 'edit') { if (header) header.style.display = 'flex'; hide(editBtn); hide(delBtn); show(cancelBtn); show(saveBtn); }
-  else { if (header) header.style.display = 'none';  hide(editBtn); hide(delBtn); hide(cancelBtn); hide(saveBtn); }
+  if (mode === 'read') { if (header) header.style.display = 'flex'; show(backBtn); show(editBtn); show(delBtn); hide(cancelBtn); hide(saveBtn); }
+  else if (mode === 'create' || mode === 'edit') { if (header) header.style.display = 'flex'; hide(backBtn); hide(editBtn); hide(delBtn); show(cancelBtn); show(saveBtn); }
+  else { if (header) header.style.display = 'none'; hide(backBtn); hide(editBtn); hide(delBtn); hide(cancelBtn); hide(saveBtn); }
+}
+
+function showSkillsHub() {
+  const body = $('skillDetailBody');
+  const empty = $('skillDetailEmpty');
+  if (body) body.style.display = 'none';
+  if (empty) empty.style.display = '';
+  _skillMode = 'empty';
+  _setSkillHeaderButtons('empty');
+  if (_skillsData) renderSkills(_skillsData);
 }
 
 async function openSkill(name, el) {
@@ -8411,7 +8506,7 @@ function _appearancePayloadFromUi(){
   const chatActivityModeSel=$('settingsChatActivityDisplayMode');
   const transparentEventTimestamps=$('settingsTransparentEventTimestamps');
   return {
-    theme: ($('settingsTheme')||{}).value || localStorage.getItem('hermes-theme') || 'dark',
+    theme: ($('settingsTheme')||{}).value || localStorage.getItem('hermes-theme') || 'light',
     skin: ($('settingsSkin')||{}).value || localStorage.getItem('hermes-skin') || 'default',
     font_size: ($('settingsFontSize')||{}).value || localStorage.getItem('hermes-font-size') || 'default',
     chat_activity_display_mode: chatActivityModeSel&&(chatActivityModeSel.value==='transparent_stream'||chatActivityModeSel.value==='hide_all_activity')
@@ -8498,7 +8593,7 @@ function _setAppearanceAutosaveStatus(state){
 
 function _rememberAppearanceSaved(payload){
   if(!payload) return;
-  _settingsThemeOnOpen=payload.theme||localStorage.getItem('hermes-theme')||'dark';
+  _settingsThemeOnOpen=payload.theme||localStorage.getItem('hermes-theme')||'light';
   _settingsSkinOnOpen=payload.skin||localStorage.getItem('hermes-skin')||'default';
   _settingsFontSizeOnOpen=payload.font_size||localStorage.getItem('hermes-font-size')||'default';
 }
@@ -8907,7 +9002,7 @@ async function loadSettingsPanel(){
     // Hydrate appearance controls first so a slow /api/models request
     // cannot overwrite an in-progress theme/skin selection.
     const themeSel=$('settingsTheme');
-    const themeVal=settings.theme||'dark';
+    const themeVal=settings.theme||'light';
     if(themeSel) themeSel.value=themeVal;
     if(typeof _syncThemePicker==='function') _syncThemePicker(themeVal);
     const skinVal=(localStorage.getItem('hermes-skin')||settings.skin||'default').toLowerCase();
@@ -12477,7 +12572,7 @@ async function saveSettings(andClose){
   const showPreviousMessagingSessions=!!($('settingsShowPreviousMessagingSessions')||{}).checked;
   const pinnedSessionsLimit=parseInt(($('settingsPinnedSessionsLimit')||{}).value,10)||3;
   const pw=($('settingsPassword')||{}).value;
-  const theme=($('settingsTheme')||{}).value||'dark';
+  const theme=($('settingsTheme')||{}).value||'light';
   const skin=($('settingsSkin')||{}).value||'default';
   const fontSize=($('settingsFontSize')||{}).value||localStorage.getItem('hermes-font-size')||'default';
   const language=($('settingsLanguage')||{}).value||'en';

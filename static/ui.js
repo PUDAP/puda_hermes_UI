@@ -9,7 +9,8 @@ const S={session:null,messages:[],entries:[],busy:false,pendingFiles:[],toolCall
 
 function assistantDisplayName(){
   if(S.activeProfile&&S.activeProfile!=='default') return S.activeProfile.charAt(0).toUpperCase()+S.activeProfile.slice(1);
-  return window._botName||'Hermes';
+  const configured=(window._botName||'').trim();
+  return !configured||configured==='Hermes'?'PUDA':configured;
 }
 const INFLIGHT={};  // keyed by session_id while request in-flight
 const SESSION_QUEUES={};  // keyed by session_id for queued follow-up turns
@@ -2644,15 +2645,21 @@ function _inlineMediaHtmlForRef(ref, sessionId, altText){
   const localKind=_mediaKindForName(ref);
   // localArtifactCard(...)
   if(localKind==='image'){
-    const safeName=esc(altText===undefined?(ref.split('/').pop()||'image'):altText);
-    const tt=(typeof t==='function')?t:(key=>({media_download:'Download'}[key]||key));
-    const dlLabel=esc(tt('media_download'));
-    const dlSvg='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
-    return `<span class="msg-artifact-image"><img class="msg-media-img" src="${esc(apiUrl)}" alt="${safeName}" loading="lazy"><a class="msg-artifact-download" href="${esc(apiUrl)}" download="${safeName}" title="${dlLabel}" aria-label="${dlLabel}" onclick="event.stopPropagation()">${dlSvg}</a></span>`;
+    const fname=esc(ref.split('/').pop()||altText||'image');
+    return `<div class="workspace-preview-card image-workspace-card"><button type="button" class="workspace-preview-open image-workspace-open" data-path="${esc(ref)}" onclick="openWorkspaceArtifact(this.dataset.path)"><span aria-hidden="true">IMG</span><span><strong>${fname}</strong><small>Open beside chat</small></span><span aria-hidden="true">→</span></button><a href="${esc(apiUrl+'&download=1')}" download="${fname}" onclick="event.stopPropagation()">Download ↓</a></div>`;
   }
-  if(_SVG_EXTS.test(ref)) return `<img class="msg-media-svg" src="${esc(apiUrl)}" alt="${esc(altText===undefined?(typeof t==='function'?t('media_svg_label'):'svg'):altText)}" loading="lazy">`;
+  if(_SVG_EXTS.test(ref)){
+    const fname=esc(ref.split('/').pop()||altText||'image.svg');
+    return `<div class="workspace-preview-card image-workspace-card"><button type="button" class="workspace-preview-open image-workspace-open" data-path="${esc(ref)}" onclick="openWorkspaceArtifact(this.dataset.path)"><span aria-hidden="true">SVG</span><span><strong>${fname}</strong><small>Open beside chat</small></span><span aria-hidden="true">→</span></button><a href="${esc(apiUrl+'&download=1')}" download="${fname}" onclick="event.stopPropagation()">Download ↓</a></div>`;
+  }
   if(localKind==='audio'||localKind==='video'){
     return _mediaPlayerHtml(localKind,apiUrl+'&inline=1',ref.split('/').pop()||ref);
+  }
+  // PDFs open in the workspace viewer so the conversation remains visible
+  // beside the document instead of growing a large inline transcript embed.
+  if(_PDF_EXTS.test(ref)){
+    const fname=esc(ref.split('/').pop()||ref);
+    return `<div class="workspace-preview-card pdf-workspace-card"><button type="button" class="workspace-preview-open pdf-workspace-open" data-path="${esc(ref)}" onclick="openWorkspaceArtifact(this.dataset.path)"><span aria-hidden="true">PDF</span><span><strong>${fname}</strong><small>Open beside chat</small></span><span aria-hidden="true">→</span></button><a href="${esc(apiUrl+'&download=1')}" download="${fname}" onclick="event.stopPropagation()">Download ↓</a></div>`;
   }
   if(_PDF_EXTS.test(ref)){
     const fname=esc(ref.split('/').pop()||ref);
@@ -18491,6 +18498,12 @@ function postProcessRenderedMessages(container) {
   loadCsvInline(container);
   loadExcalidrawInline(container);
   loadPdfInline(container);
+  const artifactCards=container?container.querySelectorAll('.workspace-preview-open[data-path]'):[];
+  const latestArtifact=artifactCards&&artifactCards.length?artifactCards[artifactCards.length-1]:null;
+  if(latestArtifact&&typeof window.openWorkspaceArtifact==='function'&&window._lastWorkspaceArtifactPath!==latestArtifact.dataset.path){
+    window._lastWorkspaceArtifactPath=latestArtifact.dataset.path;
+    window.openWorkspaceArtifact(latestArtifact.dataset.path);
+  }
   loadHtmlInline(container);
   renderMermaidBlocks(container);
   renderKatexBlocks(container);

@@ -36,8 +36,8 @@ class TestComposerPlaceholderProfile:
         m = re.search(r'function assistantDisplayName\(\)\{.*?\n\}', src, re.DOTALL)
         assert m, "assistantDisplayName function must exist"
         body = m.group(0)
-        assert "window._botName||'Hermes'" in body, \
-            "assistantDisplayName must use window._botName or 'Hermes' for the default profile"
+        assert "configured==='Hermes'?'PUDA':configured" in body, \
+            "assistantDisplayName must brand the legacy Hermes default as PUDA"
 
     def test_chat_surfaces_use_shared_assistant_display_name(self):
         """Chat rows, titles, notifications, and cancel copy must honor profile overrides."""

@@ -79,10 +79,9 @@ class TestMediaRenderMdStash(unittest.TestCase):
         # overlay — matching the ChatGPT/Claude/Gemini pattern — instead of a
         # permanent bordered card with always-visible Open/Download buttons.
         self.assertIn("localArtifactCard", UI_JS)
-        self.assertIn("msg-artifact-image", UI_JS)
-        self.assertIn("msg-artifact-download", UI_JS)
-        self.assertIn("msg-media-img", UI_JS)
-        self.assertIn("t('media_download')", UI_JS)
+        self.assertIn("workspace-preview-card image-workspace-card", UI_JS)
+        self.assertIn("workspace-preview-open image-workspace-open", UI_JS)
+        self.assertIn("openWorkspaceArtifact(this.dataset.path)", UI_JS)
         self.assertIn("media_download:", I18N_JS)
         # The clean-image redesign drops the permanent card chrome.
         self.assertNotIn("msg-artifact-card", UI_JS)
@@ -165,12 +164,11 @@ class TestMediaCSS(unittest.TestCase):
     def test_generated_artifact_image_css_defined(self):
         # #3220 redesign: clean image + hover-revealed download overlay.
         for cls in [
-            ".msg-artifact-image",
-            ".msg-artifact-download",
+            ".workspace-preview-card",
+            ".workspace-preview-open",
         ]:
             self.assertIn(cls, self.CSS)
         # Hover/focus reveals the download button (hidden by default).
-        self.assertIn(".msg-artifact-image:hover .msg-artifact-download", self.CSS)
         # The old permanent-card classes are gone.
         self.assertNotIn(".msg-artifact-card", self.CSS)
         self.assertNotIn(".msg-artifact-action", self.CSS)

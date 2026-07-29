@@ -288,6 +288,7 @@ function openWorkspacePanel(mode='browse'){
 }
 
 function closeWorkspacePanel(){
+  document.documentElement.dataset.workspacePdf='closed';
   _setWorkspacePanelMode('closed');
 }
 
@@ -2172,6 +2173,7 @@ function clearPreview(opts={}){
   const pp=$('previewPathText');if(pp)pp.textContent='';
   const ft=$('fileTree');if(ft)ft.style.display='';
   _previewCurrentPath='';_previewCurrentMode='';_previewDirty=false;
+  document.documentElement.dataset.workspacePdf='closed';
   if(closePanelAfter)closeWorkspacePanel();
   else if(keepPanelOpen&&_workspacePanelMode==='preview')openWorkspacePanel('browse');
   else syncWorkspacePanelUI();
@@ -2593,27 +2595,34 @@ if(window.visualViewport){
 
     let startX=0, startW=0;
 
-    handle.addEventListener('mousedown', e=>{
+    handle.addEventListener('pointerdown', e=>{
+      if(e.button!==undefined&&e.button!==0) return;
       e.preventDefault();
       startX = e.clientX;
       startW = targetEl.getBoundingClientRect().width;
       handle.classList.add('dragging');
       document.body.classList.add('resizing');
+      if(handle.setPointerCapture&&e.pointerId!==undefined) handle.setPointerCapture(e.pointerId);
 
       const onMove = ev=>{
         const delta = edge==='right' ? ev.clientX - startX : startX - ev.clientX;
         const newW = Math.min(maxW, Math.max(minW, startW + delta));
         targetEl.style.width = newW + 'px';
       };
-      const onUp = ()=>{
+      const onUp = ev=>{
         handle.classList.remove('dragging');
         document.body.classList.remove('resizing');
         localStorage.setItem(storageKey, parseInt(targetEl.style.width));
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
+        if(handle.releasePointerCapture&&ev&&ev.pointerId!==undefined&&handle.hasPointerCapture&&handle.hasPointerCapture(ev.pointerId)){
+          handle.releasePointerCapture(ev.pointerId);
+        }
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
       };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
     });
   }
 
@@ -2672,7 +2681,7 @@ function _normalizeAppearance(theme,skin){
   const rawTheme=typeof theme==='string'?theme.trim().toLowerCase():'';
   const rawSkin=typeof skin==='string'?skin.trim().toLowerCase():'';
   const legacy=_LEGACY_THEME_MAP[rawTheme];
-  const nextTheme=legacy?legacy.theme:(_VALID_THEMES.has(rawTheme)?rawTheme:'dark');
+  const nextTheme=legacy?legacy.theme:(_VALID_THEMES.has(rawTheme)?rawTheme:'light');
   const nextSkin=_VALID_SKINS.has(rawSkin)?rawSkin:(legacy?legacy.skin:'default');
   return {theme:nextTheme,skin:nextSkin};
 }
