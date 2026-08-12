@@ -26,6 +26,7 @@ import traceback
 import urllib.error
 import urllib.request
 import uuid
+import weakref
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -3316,8 +3317,20 @@ def _candidate_supports_reasoning(candidate: str) -> bool:
             if major >= 4 or (major == 3 and minor >= 7):
                 return True
         return False
+    # Positive-only prefixed Qwen 3+ detection (e.g. "al-qwen3-8-max-preview"
+    # → tokens ["al","qwen3","8",...]). Scan for any token starting with
+    # "qwen" followed by version >= 3 and immediately allow. Do NOT return
+    # False here — Qwen 2.x embedded in hybrid IDs like
+    # "deepseek-r1-distill-qwen2.5-bakeneko-32b" must fall through to the
+    # DeepSeek detector below.
+    for token in tokens:
+        m = re.match(r"qwen(\d+)", token)
+        if m and int(m.group(1)) >= 3:
+            return True
+    # Terminal guard for standalone/bare Qwen IDs (original behavior):
+    # "qwen" as a standalone token or normalized starting with "qwen" means
+    # this IS a Qwen model — apply the 3+ gate and block 2.x.
     if "qwen" in token_set or normalized.startswith("qwen"):
-        # Restrict to Qwen 3+ (exclude Qwen 2/2.5)
         match = re.search(r"qwen.*?(\d+)(?:\D+(\d+))?", normalized)
         if match:
             major = int(match.group(1))
@@ -8866,6 +8879,52 @@ def unregister_stream_owner(stream_id: str) -> None:
         STREAM_SESSION_OWNERS.pop(stream_id, None)
 
 
+# ── Per-session writeback-ownership registry (#6623 re-gate) ────────────────
+# Maps session_id -> stream_id of the turn that currently owns the session's
+# writeback. Written whenever a turn is admitted (route layer, next to
+# session.active_stream_id), REPLACED when a successor turn is admitted, and
+# NEVER cleared by cancel_stream() — cancel eagerly pops STREAMS/ACTIVE_RUNS
+# and clears ``active_stream_id``, so a delayed finalizer from an old worker
+# cannot tell "the session advanced to a successor" apart from "cancel simply
+# cleared the field" by looking at its own (possibly LRU-evicted, detached)
+# snapshot. This record survives cancel cleanup: the owning worker's own
+# finally clears the entry, and only while it still owns it.
+SESSION_WRITEBACK_OWNERS: dict = {}
+SESSION_WRITEBACK_OWNERS_LOCK = threading.Lock()
+
+
+def register_session_writeback_owner(session_id: str, stream_id: str) -> None:
+    """Record the stream that currently owns a session's writeback."""
+    session_id = str(session_id or "").strip()
+    stream_id = str(stream_id or "").strip()
+    if not session_id or not stream_id:
+        return
+    with SESSION_WRITEBACK_OWNERS_LOCK:
+        SESSION_WRITEBACK_OWNERS[session_id] = stream_id
+
+
+def session_writeback_owner(session_id: str) -> str | None:
+    """Return the stream that currently owns the session's writeback, if any."""
+    session_id = str(session_id or "").strip()
+    if not session_id:
+        return None
+    with SESSION_WRITEBACK_OWNERS_LOCK:
+        owner = SESSION_WRITEBACK_OWNERS.get(session_id)
+    owner = str(owner or "").strip()
+    return owner or None
+
+
+def clear_session_writeback_owner_if_owned(session_id: str, stream_id: str) -> None:
+    """Forget the writeback-ownership entry only while ``stream_id`` still owns it."""
+    session_id = str(session_id or "").strip()
+    stream_id = str(stream_id or "").strip()
+    if not session_id or not stream_id:
+        return
+    with SESSION_WRITEBACK_OWNERS_LOCK:
+        if SESSION_WRITEBACK_OWNERS.get(session_id) == stream_id:
+            SESSION_WRITEBACK_OWNERS.pop(session_id, None)
+
+
 # ── Gateway capability cache ─────────────────────────────────────────────────
 # Probes /v1/capabilities once per base_url/api-key pair and caches the result
 # for 60 s so guarded-turn routing decisions do not add latency on every chat
@@ -9146,7 +9205,11 @@ def _clear_thread_env():
 
 
 # ── Per-session agent locks ───────────────────────────────────────────────────
-SESSION_AGENT_LOCKS: dict = {}
+# Weak values keep one lock for every overlapping holder/waiter without leaking
+# one permanent registry entry per deleted session.  A caller's local reference
+# keeps the lock alive for the whole critical section; once no operation can
+# still use it, the registry entry disappears automatically.
+SESSION_AGENT_LOCKS = weakref.WeakValueDictionary()
 SESSION_AGENT_LOCKS_LOCK = threading.Lock()
 
 
@@ -9154,26 +9217,42 @@ def _get_session_agent_lock(session_id: str) -> threading.Lock:
     """Return the per-session Lock used to serialize all Session mutations.
 
     Lock lifecycle invariant:
-      - A Lock is created lazily on first access and lives in SESSION_AGENT_LOCKS
-        for the lifetime of the session.
-      - The entry is pruned in /api/session/delete (under SESSION_AGENT_LOCKS_LOCK)
-        so deleted sessions don't leak a Lock forever.
-      - During context compression the agent may rotate session_id.  The
-        streaming thread migrates the lock entry atomically under
-        SESSION_AGENT_LOCKS_LOCK: it aliases the new session_id to the *same*
-        Lock object and pops the old-id entry (see streaming.py compression
-        block).  This ensures that subsequent callers using the new ID still
-        acquire the same Lock, while the old-id entry is removed to prevent a
-        leak.  The streaming thread already holds the Lock during this
-        migration, so the reference stays alive even after the dict entry is
-        removed.
+      - A Lock is created lazily on first access. The weak registry retains it
+        while any holder or waiter has a strong reference, then reclaims the
+        entry automatically when no overlapping operation can still use it.
+      - During context compression the agent may rotate session_id. The
+        streaming thread atomically aliases both old and new IDs to the *same*
+        Lock object under SESSION_AGENT_LOCKS_LOCK (see streaming.py's
+        compression block). Keeping the old alias prevents a late old-ID caller
+        from creating a second Lock while an earlier holder or waiter still
+        exists. Both weak aliases disappear automatically after all strong
+        references to the Lock are released.
       - Lock contract: hold for the in-memory mutation + s.save() only; never
         across network I/O (LLM calls, HTTP requests).
     """
     with SESSION_AGENT_LOCKS_LOCK:
-        if session_id not in SESSION_AGENT_LOCKS:
-            SESSION_AGENT_LOCKS[session_id] = threading.Lock()
-        return SESSION_AGENT_LOCKS[session_id]
+        lock = SESSION_AGENT_LOCKS.get(session_id)
+        if lock is None:
+            lock = threading.Lock()
+            SESSION_AGENT_LOCKS[session_id] = lock
+        return lock
+
+
+def _alias_session_agent_lock(
+    old_session_id: str,
+    new_session_id: str,
+    lock: threading.Lock,
+) -> None:
+    """Alias a compression continuation to the same live mutation lock.
+
+    Keep the old ID alias while any holder or waiter still references ``lock``.
+    Because the registry values are weak, both aliases disappear automatically
+    once no overlapping operation can use the pre-compression lock. Removing the
+    old alias eagerly would let a late old-ID request create a second lock.
+    """
+    with SESSION_AGENT_LOCKS_LOCK:
+        SESSION_AGENT_LOCKS[old_session_id] = lock
+        SESSION_AGENT_LOCKS[new_session_id] = lock
 
 
 # ── Settings persistence ─────────────────────────────────────────────────────
@@ -9197,6 +9276,7 @@ _SETTINGS_DEFAULTS = {
     "show_claude_code_sessions": True,  # allow filtering Claude Code rows without hiding other imported sources
     "show_cron_sessions": False,  # surface cron sessions in the sidebar (subordinate to show_cli_sessions)
     "show_webhook_sessions": False,  # surface webhook sessions in the sidebar (subordinate to show_cli_sessions)
+    "show_kanban_sessions": False,  # surface kanban worker sessions in the sidebar (subordinate to show_cli_sessions)
     "show_previous_messaging_sessions": False,  # show older Telegram/Discord/etc. reset segments
     "sync_to_insights": False,  # mirror WebUI token usage to state.db for /insights
     "check_for_updates": True,  # check if webui/agent repos are behind upstream
@@ -9460,9 +9540,30 @@ def load_settings() -> dict:
         # Honor a stored True only when that marker is present.
         if not bool(stored.get("virtualize_transcript_optin")):
             settings["virtualize_transcript"] = False
+    # Fall back to the DEFAULTS, not to None, when nothing is stored.
+    #
+    # `_read_raw_settings_file()` returns {} for a MISSING settings.json, and {}
+    # is a dict — so the `isinstance(stored, dict)` arms were always taken,
+    # `stored.get("theme")` was None, and `_normalize_appearance(None, None)`
+    # fell through to its unknown-theme branch and returned ("dark", "default").
+    # `_SETTINGS_DEFAULTS["theme"]` / `["skin"]` were therefore unreachable for
+    # the one case they exist to serve: a user with no settings file yet.
+    #
+    # This is invisible on stock defaults, because dark/default is exactly what
+    # the fallback produces — the two paths agree. It only surfaces once the
+    # defaults are changed, at which point the dict silently does nothing.
+    #
+    # Gate on the PAIR, not per field. A per-field `or settings.get(...)` looks
+    # equivalent and is not: with a stored legacy theme and no skin, `slate`
+    # normalises to ("dark", "slate"), but per-field fallback injects the
+    # default skin and yields ("dark", "default") — silently destroying the
+    # legacy migration. Same distinction the boot script draws in #6808.
+    _has_stored_appearance = isinstance(stored, dict) and (
+        "theme" in stored or "skin" in stored
+    )
     settings["theme"], settings["skin"] = _normalize_appearance(
-        stored.get("theme") if isinstance(stored, dict) else settings.get("theme"),
-        stored.get("skin") if isinstance(stored, dict) else settings.get("skin"),
+        stored.get("theme") if _has_stored_appearance else settings.get("theme"),
+        stored.get("skin") if _has_stored_appearance else settings.get("skin"),
     )
     settings["default_model"] = get_effective_default_model()
     try:
@@ -9520,6 +9621,7 @@ _SETTINGS_BOOL_KEYS = {
     "show_claude_code_sessions",
     "show_cron_sessions",
     "show_webhook_sessions",
+    "show_kanban_sessions",
     "show_previous_messaging_sessions",
     "sync_to_insights",
     "check_for_updates",
