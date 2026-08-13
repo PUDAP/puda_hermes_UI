@@ -5944,7 +5944,7 @@ function renderWorkspaceDropdownInto(dd, workspaces, currentWs){
     t('workspace_choose_path'),
     t('workspace_choose_path_meta'),
     li('folder',12),
-    ()=>promptWorkspacePath()
+    ()=>chooseWorkspaceDirectory()
   ));
   const div=document.createElement('div');div.className='ws-divider';dd.appendChild(div);
   dd.appendChild(_renderWorkspaceAction(
@@ -6430,6 +6430,41 @@ async function promptWorkspacePath(){
   }
 }
 
+async function chooseWorkspaceDirectory(){
+  closeWsDropdown();
+  if(S.busy){showToast(t('workspace_busy_switch'));return;}
+  let picked;
+  try{
+    picked=await api('/api/workspaces/pick-directory',{
+      method:'POST',
+      body:JSON.stringify({initial_path:S.session?.workspace||S._profileDefaultWorkspace||''}),
+      timeoutMs:0
+    });
+  }catch(e){
+    showToast(t('workspace_switch_failed')+(e&&e.message?e.message:e),'error');
+    return;
+  }
+  if(!picked?.supported){
+    await promptWorkspacePath();
+    return;
+  }
+  if(picked.canceled||!picked.path)return;
+  try{
+    let data;
+    try{
+      data=await api('/api/workspaces/add',{method:'POST',body:JSON.stringify({path:picked.path})});
+      _workspaceList=data.workspaces||[];
+    }catch(e){
+      if(!String(e.message||'').includes('Workspace already in list'))throw e;
+      data=await loadWorkspaceList();
+    }
+    const target=(data.workspaces||[]).find(w=>w.path===picked.path);
+    if(!target)throw new Error(t('workspace_not_added'));
+    await switchToWorkspace(target.path,target.name);
+  }catch(e){
+    showToast(t('workspace_switch_failed')+(e&&e.message?e.message:e),'error');
+  }
+}
 async function switchToWorkspace(path,name){
   // Opus review Q6: if called from blank page, auto-create a session bound to
   // the requested workspace so the switch doesn't silently no-op.
