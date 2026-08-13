@@ -382,7 +382,7 @@ function syncWorkspacePanelUI(){
     _setButtonTooltip(collapseBtn, isCompact?_uiText('workspace_panel_close','Close workspace panel'):_uiText('workspace_panel_hide','Hide workspace panel'));
   }
   const hasSession=!!S.session;
-  ['btnUpDir','btnNewFile','btnNewFolder','btnRefreshPanel'].forEach(id=>{
+  ['btnUpDir','btnNewFile','btnNewFolder','btnChooseWorkspace','btnRefreshPanel'].forEach(id=>{
     const el=$(id);
     if(el)el.disabled=!hasSession;
   });

@@ -15762,6 +15762,9 @@ def handle_post(handler, parsed) -> bool:
     if parsed.path == "/api/workspaces/add":
         return _handle_workspace_add(handler, body)
 
+    if parsed.path == "/api/workspaces/pick-directory":
+        return _handle_workspace_pick_directory(handler, body)
+
     if parsed.path == "/api/workspaces/remove":
         return _handle_workspace_remove(handler, body)
 
@@ -24165,6 +24168,37 @@ def _handle_workspace_add(handler, body):
     wss.append({"path": str(p), "name": name or p.name})
     save_workspaces(wss)
     return j(handler, {"ok": True, "workspaces": wss})
+
+
+def _handle_workspace_pick_directory(handler, body):
+    """Open a native host folder dialog for a local browser session."""
+    import ipaddress
+
+    raw_client = str(getattr(handler, "client_address", ("",))[0] or "")
+    try:
+        client = ipaddress.ip_address(raw_client)
+        is_loopback = client.is_loopback or bool(client.ipv4_mapped and client.ipv4_mapped.is_loopback)
+    except ValueError:
+        is_loopback = False
+    if not is_loopback:
+        return j(handler, {
+            "ok": False,
+            "supported": False,
+            "error": "Native folder selection is available only from this computer",
+        })
+
+    from api.directory_picker import DirectoryPickerUnavailable, pick_directory
+
+    try:
+        selected = pick_directory(str(body.get("initial_path", "") or ""))
+    except DirectoryPickerUnavailable as exc:
+        return j(handler, {"ok": False, "supported": False, "error": str(exc)})
+    return j(handler, {
+        "ok": bool(selected),
+        "supported": True,
+        "canceled": not bool(selected),
+        "path": selected,
+    })
 
 
 def _handle_workspace_remove(handler, body):
